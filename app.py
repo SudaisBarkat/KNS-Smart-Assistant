@@ -636,11 +636,27 @@ if question:
     st.chat_message("assistant").markdown(answer)
 
 # -----------------------------
-# FOOTER
+# CREATED BY
 # -----------------------------
 st.divider()
 
-st.caption(
-    "🏫 KNS Smart Assistant • "
-    "Khair un Nas School Swat"
-)
+st.markdown("## 👩‍💻 Created By")
+
+col1, col2 = st.columns([1, 2])
+
+with col1:
+    st.image("sudais.jpg", width=150)
+
+with col2:
+    st.markdown("""
+### 🌟 Madiha Sha
+
+**Class:** 10th  
+**School:** Khair un Nas School Swat
+
+📚 Reading Books  
+✍️ Writing Stories  
+🏸 Playing with Rackets
+""")
+
+st.caption("🏫 KNS Smart Assistant • Khair un Nas School Swat")
