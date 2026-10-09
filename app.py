@@ -1,662 +1,919 @@
 import streamlit as st
+import pandas as pd
+import re
 
-# -----------------------------
-# PAGE SETTINGS
-# -----------------------------
+# =========================================================
+# 1. PAGE SETTINGS
+# =========================================================
+
 st.set_page_config(
     page_title="KNS Smart Assistant",
-    page_icon="🏫",
-    layout="centered"
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# -----------------------------
-# SCHOOL INFORMATION
-# -----------------------------
-school_name = "Khair un Nas School Swat"
-location = "Gunbad Maira, Mingora, Swat"
-principal = "Sir Khalid"
-timing = "8:00 AM – 2:00 PM"
-phone = "+92 346 9443390"
+SCHOOL_NAME = "Khair-un-Nas School Swat"
+SCHOOL_ADDRESS = "Gunbad Maira, Mingora, Swat"
+PRINCIPAL = "Sir Khalid"
+SCHOOL_TIMING = "8:00 AM to 2:00 PM"
+SCHOOL_PHONE = "0946-700232"
 
-# -----------------------------
-# HEADER
-# -----------------------------
-st.title("🏫 KNS Smart Assistant")
-st.caption("Khair un Nas School Swat")
-st.divider()
+# =========================================================
+# 2. PROFESSIONAL BLUE THEME
+# =========================================================
 
-# -----------------------------
-# WELCOME
-# -----------------------------
 st.markdown("""
-### 👋 Assalamu Alaikum!
+<style>
+.stApp {
+    background-color: #f3f6fc;
+}
+[data-testid="stSidebar"] {
+    background-color: #102448;
+}
+[data-testid="stSidebar"] * {
+    color: white !important;
+}
+.hero {
+    background: linear-gradient(120deg, #102448, #2457a7);
+    padding: 28px;
+    border-radius: 16px;
+    color: white;
+    margin-bottom: 20px;
+}
+.hero h1 {
+    color: white;
+    margin-bottom: 8px;
+}
+.hero p {
+    color: #e4edff;
+    font-size: 16px;
+}
+.info-card {
+    background: white;
+    padding: 18px;
+    border-radius: 12px;
+    border: 1px solid #dce5f4;
+    margin-bottom: 12px;
+}
+div.stButton > button {
+    border-radius: 9px;
+    font-weight: 600;
+}
+</style>
+""", unsafe_allow_html=True)
 
-Welcome to **KNS Smart Assistant**.
+# =========================================================
+# 3. SENIOR TIMETABLE: CLASSES FIVE TO TEN
+# =========================================================
 
-I am the digital assistant of **Khair un Nas School Swat**.
+SENIOR_TIMES = [
+    ("Period 0", "7:50–8:15 AM"),
+    ("Period 1", "8:15–8:50 AM"),
+    ("Period 2", "8:50–9:25 AM"),
+    ("Period 3", "9:25–10:00 AM"),
+    ("Period 4", "10:00–10:30 AM"),
+    ("Period 5", "10:30–11:00 AM"),
+    ("Period 6", "11:00–11:30 AM"),
+]
 
-I can help you find information about our school,
-teachers, classes, admissions, facilities, timings,
-and student information.
-""")
+# Each entry is (subject, teacher).
+# Entries are kept in the order supplied by the school.
 
-st.divider()
+SENIOR = {
+    "5th-R": [
+        ("English", "Miss Sidra Salman"),
+        ("Science", "Sir Shah Sawar"),
+        ("Urdu", "Miss Rukhsar"),
+        ("Maths", "Sir Shakoor"),
+        ("S. Studies", "Sir Yaseen Zaifullah"),
+        ("Islamiyat / M.Q", "Sir Abbas"),
+    ],
 
-# -----------------------------
-# QUICK INFORMATION
-# -----------------------------
-st.subheader("📌 Quick Information")
+    "5th-J": [
+        ("Urdu", "Miss Rukhsar"),
+        ("S. Studies", "Miss Sidra Salman"),
+        ("Maths", "Sir M Shakoor"),
+        ("Science", "Sir Shah Sawar"),
+        ("Islamiyat / M.Q", "Sir Abbas"),
+        ("English", "Miss Sidra Salman"),
+    ],
 
-col1, col2 = st.columns(2)
+    "6th-R/J": [
+        ("History", "Sir Yaseen Zaifullah"),
+        ("Islamiyat / M.Q", "Sir Abbas"),
+        ("Science", "Sir Shah Sawar"),
+        ("English", "Sir Arif"),
+        ("Science", "Sir Shakeeb"),
+        ("Urdu", "Sir Siddique"),
+    ],
 
-with col1:
-    about = st.button(
-        "🏫 About School",
-        use_container_width=True
+    "7th-Jasmine": [
+        ("Islamiyat / M.Q", "Sir Abbas"),
+        ("Maths", "Sir Shakeeb"),
+        ("History", "Sir Yaseen Zaifullah"),
+        ("English", "Miss Sidra Salman"),
+        ("Urdu", "Miss Rukhsar"),
+        ("Science", "Sir Shah Sawar"),
+    ],
+
+    "7th-Rose": [
+        ("Maths", "Sir Amjad"),
+        ("History", "Sir Yaseen Zaifullah"),
+        ("Islamiyat / M.Q", "Miss Sidra Salman"),
+        ("English", "Sir Abbas"),
+        ("Science", "Sir Shah Sawar"),
+        ("Science", "Miss Rukhsar"),
+    ],
+
+    "8th-Jasmine": [
+        ("Maths", "Sir Amjad"),
+        ("Biology", "Sir Siddique"),
+        ("Urdu", "Sir Arif"),
+        ("Chemistry", "Sir Shakeeb"),
+        ("English", "Sir Arif"),
+        ("Physics", "Sir M Shakoor"),
+    ],
+
+    "8th-Rose": [
+        ("Islamiyat / M.Q", "Sir Siddique"),
+        ("Biology", "Sir Arif"),
+        ("Chemistry", "Sir Shakeeb"),
+        ("Maths", "Sir Amjad"),
+        ("Physics", "Sir Shakoor"),
+        ("Chemistry", "Sir Arif"),
+    ],
+
+    "9th-R/J": [
+        ("Maths", "Sir Arif"),
+        ("Physics", "Sir M Shakoor"),
+        ("English", "Sir Shakeeb"),
+        ("Pak Studies / AH", "Sir Amjad"),
+        ("Islamiyat / M.Q", "Sir Siddique"),
+        ("English", "Sir Khalid"),
+    ],
+
+    "10th-R/J": [
+        ("Urdu", "Sir Majeedullah"),
+        ("Chemistry", "Teacher not specified"),
+        ("Physics", "Sir M Shakoor"),
+        ("Physics", "Sir Asif"),
+        ("Islamiyat / M.Q", "Sir Siddique"),
+        ("Maths", "Sir Amjad"),
+        ("Pak Studies / AH", "Sir Yaseen Zaifullah"),
+    ],
+}
+
+# =========================================================
+# 4. PRIMARY TIMETABLE: PLAY GROUP TO FOURTH
+# =========================================================
+
+PRIMARY_TIMES = [
+    ("Assembly", "8:10–8:25 AM"),
+    ("Period 1", "8:25–9:05 AM"),
+    ("Period 2", "9:05–9:45 AM"),
+    ("Period 3", "9:45–10:25 AM"),
+    ("Period 4", "10:25–11:05 AM"),
+    ("Period 5", "11:05–11:30 AM"),
+    ("Period 6", "11:30 AM–12:10 PM"),
+    ("Period 7", "12:10–12:50 PM"),
+]
+
+# offset 0 means the list begins with Assembly.
+# offset 1 means the list begins with Period 1.
+
+PRIMARY = {
+    "Play Group": {
+        "teacher": "Miss Shahida Rahman and Miss Ilham",
+        "offset": 0,
+        "subjects": [
+            "Assembly",
+            "English Reading",
+            "English Writing",
+            "Urdu Reading",
+            "Break",
+            "Urdu Writing",
+            "Maths Reading",
+            "Maths Writing",
+        ],
+    },
+
+    "Nursery-O": {
+        "teacher": "Miss Asma",
+        "offset": 1,
+        "subjects": [
+            "English Reading",
+            "English Writing",
+            "Urdu Reading",
+            "Urdu Writing",
+            "Maths Reading",
+            "Maths Writing",
+        ],
+    },
+
+    "Nursery-P": {
+        "teacher": "Miss Hafsa",
+        "offset": 1,
+        "subjects": [
+            "English Reading",
+            "English Writing",
+            "Urdu Reading",
+            "Urdu Writing",
+            "Maths Reading",
+            "Maths Writing",
+        ],
+    },
+
+    "K.G-P": {
+        "teacher": "Miss Sumaiya",
+        "offset": 1,
+        "subjects": [
+            "English Reading",
+            "English Writing",
+            "Urdu/Pashto Reading",
+            "Urdu/Pashto Writing",
+            "Maths Reading",
+            "Maths Writing",
+        ],
+    },
+
+    "K.G-O": {
+        "teacher": "Miss Noreen",
+        "offset": 1,
+        "subjects": [
+            "English Reading",
+            "English Writing",
+            "Urdu/Pashto Reading",
+            "Urdu/Pashto Writing",
+            "Maths Reading",
+            "Maths Writing",
+        ],
+    },
+
+    "One-O": {
+        "teacher": "Miss Ayesha",
+        "offset": 1,
+        "subjects": [
+            "Maths",
+            "Urdu",
+            "English",
+            "G. Knowledge",
+            "Islamiyat",
+            "Writing Class",
+            "Pashto",
+        ],
+    },
+
+    "One-P": {
+        "teacher": "Miss Hira",
+        "offset": 1,
+        "subjects": [
+            "Urdu",
+            "Maths",
+            "Islamiyat",
+            "G. Knowledge",
+            "Pashto",
+            "English",
+            "Writing Class",
+        ],
+    },
+
+    "Two-P": {
+        "teacher": "Miss Arzoo",
+        "offset": 1,
+        "subjects": [
+            "G. Knowledge",
+            "English",
+            "Urdu",
+            "Pashto",
+            "English",
+            "Maths",
+            "Pashto",
+        ],
+    },
+
+    "Two-O": {
+        "teacher": "Miss Sanam",
+        "offset": 1,
+        "subjects": [
+            "Urdu",
+            "Pashto",
+            "G. Knowledge",
+            "English",
+            "Break",
+            "Islamiyat",
+            "Writing Class",
+        ],
+    },
+
+    "Three-P": {
+        "teacher": "Miss Shabeena",
+        "offset": 1,
+        "subjects": [
+            "Maths",
+            "English",
+            "Urdu",
+            "G. Knowledge",
+            "Islamiyat",
+            "Writing Class",
+        ],
+    },
+
+    "Three-O": {
+        "teacher": "Miss Madeeha",
+        "offset": 1,
+        "subjects": [
+            "Maths",
+            "English",
+            "Urdu",
+            "G. Knowledge",
+            "Islamiyat",
+            "Writing Class",
+        ],
+    },
+
+    "Fourth-O": {
+        "teacher": "Miss Sumaira",
+        "offset": 1,
+        "subjects": [
+            "Islamiyat",
+            "S. Studies",
+            "Science",
+            "English",
+            "Maths",
+            "Urdu",
+        ],
+    },
+
+    "Fourth-P": {
+        "teacher": "Miss Sadaf",
+        "offset": 1,
+        "subjects": [
+            "Islamiyat",
+            "S. Studies",
+            "Science",
+            "Maths",
+            "Urdu",
+            "English",
+        ],
+    },
+}
+
+# =========================================================
+# 5. GENERAL SCHOOL INFORMATION
+# =========================================================
+
+TEACHERS = [
+    ("Zero Class", "Urdu", "Sir Majeedullah"),
+    ("1st Class", "Chemistry", "Sir Saqib"),
+    ("2nd Class", "Physics", "Sir Shakur"),
+    ("3rd Class", "Biology", "Sir Asif"),
+    ("4th Class", "Maths", "Sir Amjad"),
+    ("6th Class", "Islamiyat and Mutalia Quran", "Sir Siddiq"),
+    ("7th Class", "English", "Sir Arif"),
+    ("Last Class", "Pakistan Studies", "Sir Yaseen"),
+    ("10th Class", "Artificial Intelligence (AI)", "Sir Sufyan"),
+]
+
+# =========================================================
+# 6. TIMETABLE DISPLAY FUNCTIONS
+# =========================================================
+
+def show_senior_timetable(class_name):
+    """Display the timetable for a class from Five to Ten."""
+
+    if class_name not in SENIOR:
+        st.error("Timetable not found for this class.")
+        return
+
+    rows = []
+
+    for index, (subject, teacher) in enumerate(SENIOR[class_name]):
+        if index < len(SENIOR_TIMES):
+            period, period_time = SENIOR_TIMES[index]
+        else:
+            period = f"Period {index}"
+            period_time = "Time not specified"
+
+        rows.append({
+            "Period": period,
+            "Time": period_time,
+            "Subject": subject,
+            "Teacher": teacher,
+        })
+
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True,
     )
 
-    teachers = st.button(
-        "👨‍🏫 Teachers & Subjects",
-        use_container_width=True
+    st.caption(
+        "Subjects are shown in the order supplied. "
+        "Please verify period alignment against the school's original timetable."
     )
 
-    classes = st.button(
-        "📚 Classes",
-        use_container_width=True
+
+def show_primary_timetable(class_name):
+    """Display the timetable for Play Group through Fourth."""
+
+    if class_name not in PRIMARY:
+        st.error("Timetable not found for this class.")
+        return
+
+    details = PRIMARY[class_name]
+    rows = []
+    offset = details["offset"]
+
+    for index, subject in enumerate(details["subjects"]):
+        time_index = index + offset
+
+        if 0 <= time_index < len(PRIMARY_TIMES):
+            period, period_time = PRIMARY_TIMES[time_index]
+        else:
+            period = f"Period {index + 1}"
+            period_time = "Time not specified"
+
+        rows.append({
+            "Period": period,
+            "Time": period_time,
+            "Subject": subject,
+            "Class Teacher": details["teacher"],
+        })
+
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True,
     )
 
-    fees = st.button(
-        "💰 Fee Information",
-        use_container_width=True
+    st.caption(
+        "Teacher names and subject order are based on the information supplied. "
+        "Verify the exact period alignment against the original school timetable."
     )
 
-with col2:
-    admission = st.button(
-        "📝 Admission",
-        use_container_width=True
+
+# =========================================================
+# 7. CHATBOT ANSWER FUNCTION
+# =========================================================
+
+def normalize(text):
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9\s/-]", " ", text)
+    return re.sub(r"\s+", " ", text)
+
+
+def answer_question(question):
+    q = normalize(question)
+
+    # Greetings
+    if any(word in q.split() for word in ["hi", "hello", "salam", "assalam"]):
+        return (
+            "Assalam-o-Alaikum! Welcome to Khair-un-Nas School Swat. "
+            "How can I help you today?"
+        )
+
+    # School information
+    if "principal" in q or "head teacher" in q:
+        return f"The principal of {SCHOOL_NAME} is {PRINCIPAL}."
+
+    if "address" in q or "location" in q or "where is" in q:
+        return f"Our school is located at {SCHOOL_ADDRESS}."
+
+    if "phone" in q or "contact" in q or "number" in q:
+        return (
+            f"The phone number supplied in the timetable is {SCHOOL_PHONE}. "
+            "Please confirm it with the school before relying on it."
+        )
+
+    if "timing" in q or "school time" in q or "school open" in q:
+        return f"The general school timing is {SCHOOL_TIMING}."
+
+    if "holiday" in q or "vacation" in q:
+        return "The previously provided school information says summer holidays are approximately one month. Please confirm current holiday dates with the school."
+
+    if "fee" in q or "fees" in q:
+        return (
+            "The previously provided fee information is approximately Rs. 2,500–3,000 "
+            "for lower classes and Rs. 4,000–4,500 for Classes 7–10. "
+            "Please confirm the current fee with the school office."
+        )
+
+    if "admission" in q or "admit" in q or "enroll" in q:
+        return (
+            "For admission, contact the school office to confirm available seats, "
+            "required documents, admission dates, and current fees."
+        )
+
+    if "facility" in q or "facilities" in q:
+        return (
+            "Please contact the school office for a current list of facilities "
+            "and available services."
+        )
+
+    # AI teacher
+    if (
+        ("ai" in q or "artificial intelligence" in q)
+        and ("teacher" in q or "teach" in q or "class" in q or "sir" in q)
+    ):
+        return "Sir Sufyan teaches Artificial Intelligence (AI) to Class 10."
+
+    # Senior timetable questions
+    if "timetable" in q or "time table" in q or "period" in q:
+        return (
+            "Open the Timetable Browser from the sidebar, select "
+            "'Classes Five to Ten' or 'Play Group to Fourth', then choose your class."
+        )
+
+    # Teacher / subject search in senior timetable
+    for class_name, entries in SENIOR.items():
+        normalized_class = normalize(class_name)
+
+        aliases = {
+            "5th-r": ["5th-r", "class 5 r", "fifth r"],
+            "5th-j": ["5th-j", "class 5 j", "fifth j"],
+            "6th-r/j": ["6th-r/j", "class 6", "sixth class"],
+            "7th-jasmine": ["7th-jasmine", "class 7 jasmine"],
+            "7th-rose": ["7th-rose", "class 7 rose"],
+            "8th-jasmine": ["8th-jasmine", "class 8 jasmine"],
+            "8th-rose": ["8th-rose", "class 8 rose"],
+            "9th-r/j": ["9th-r/j", "class 9", "ninth class"],
+            "10th-r/j": ["10th-r/j", "class 10", "tenth class"],
+        }
+
+        class_mentioned = (
+            normalized_class in q
+            or any(alias in q for alias in aliases.get(class_name, []))
+        )
+
+        if class_mentioned:
+            for subject, teacher in entries:
+                if normalize(subject) in q:
+                    return (
+                        f"In {class_name}, {teacher} is listed for {subject} "
+                        "in the supplied timetable."
+                    )
+
+            if "teacher" in q or "teach" in q or "who is" in q:
+                matches = [
+                    f"{subject}: {teacher}"
+                    for subject, teacher in entries
+                ]
+                return (
+                    f"Teachers listed for {class_name}:\n\n"
+                    + "\n".join(f"- {item}" for item in matches)
+                )
+
+    # General teacher search
+    for class_name, subject, teacher in TEACHERS:
+        if normalize(subject) in q and (
+            "teacher" in q or "teach" in q or "who" in q
+        ):
+            return f"{teacher} is listed for {subject} in {class_name}."
+
+    # Class list
+    if "classes" in q or "which class" in q:
+        return (
+            "The timetable browser contains Play Group, Nursery, K.G., "
+            "Classes One to Four, and the supplied sections of Classes Five to Ten."
+        )
+
+    if "school" in q or "about" in q:
+        return (
+            f"{SCHOOL_NAME} is located at {SCHOOL_ADDRESS}. "
+            f"The principal is {PRINCIPAL}. General timing: {SCHOOL_TIMING}."
+        )
+
+    return (
+        "I'm still learning how to answer that question. Try asking about the "
+        "principal, school timing, fees, admissions, a teacher, AI in Class 10, "
+        "or open the Timetable Browser to see a class timetable."
     )
 
-    timing_button = st.button(
-        "🕐 School Timing",
-        use_container_width=True
+
+# =========================================================
+# 8. SIDEBAR NAVIGATION
+# =========================================================
+
+st.sidebar.markdown("# 🎓 KNS Assistant")
+st.sidebar.markdown("### Khair-un-Nas School Swat")
+st.sidebar.divider()
+
+page = st.sidebar.radio(
+    "Choose a section",
+    [
+        "Home",
+        "Timetable Browser",
+        "Ask the Chatbot",
+        "About School",
+        "Teachers & Subjects",
+        "Fee Information",
+        "Admission",
+        "School Timing",
+        "Holidays & Facilities",
+    ],
+    key="main_navigation",
+)
+
+st.sidebar.divider()
+st.sidebar.caption("School information assistant • 2026–27")
+
+# =========================================================
+# 9. MAIN HEADER
+# =========================================================
+
+st.markdown(
+    f"""
+    <div class="hero">
+        <h1>🎓 KNS Smart Assistant</h1>
+        <p><b>{SCHOOL_NAME}</b></p>
+        <p>{SCHOOL_ADDRESS}</p>
+        <p>School information, teachers, and period-wise timetables for 2026–27</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# =========================================================
+# 10. HOME PAGE
+# =========================================================
+
+if page == "Home":
+    st.subheader("Welcome!")
+
+    st.write(
+        "Welcome to the Khair-un-Nas School Swat Smart Assistant. "
+        "Choose a section from the sidebar to explore school information "
+        "or view your class timetable."
     )
 
-    holidays = st.button(
-        "🏖️ Holidays",
-        use_container_width=True
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown(
+            '<div class="info-card"><h3>🗓️ Timetables</h3>'
+            '<p>Browse the supplied 2026–27 class schedules.</p></div>',
+            unsafe_allow_html=True,
+        )
+
+    with col2:
+        st.markdown(
+            '<div class="info-card"><h3>👩‍🏫 Teachers</h3>'
+            '<p>Find teachers and their listed subjects.</p></div>',
+            unsafe_allow_html=True,
+        )
+
+    with col3:
+        st.markdown(
+            '<div class="info-card"><h3>💬 Ask questions</h3>'
+            '<p>Ask about school information and Class 10 AI.</p></div>',
+            unsafe_allow_html=True,
+        )
+
+    st.info(
+        "Tip: Open 'Timetable Browser' in the sidebar, then select "
+        "'Classes Five to Ten' to see the senior timetable."
     )
 
-    facilities = st.button(
-        "🏢 Facilities",
-        use_container_width=True
+# =========================================================
+# 11. TIMETABLE BROWSER
+# =========================================================
+
+elif page == "Timetable Browser":
+    st.subheader("🗓️ Period-wise Timetable 2026–27")
+
+    level = st.radio(
+        "Choose timetable",
+        ["Play Group to Fourth", "Classes Five to Ten"],
+        horizontal=True,
+        key="timetable_level",
     )
 
-    about_me = st.button(
-        "👩‍💻 About Me",
-        use_container_width=True
+    if level == "Classes Five to Ten":
+        selected = st.selectbox(
+            "Select class",
+            list(SENIOR.keys()),
+            key="senior_class_select",
+        )
+
+        st.subheader(f"{selected} Timetable")
+        show_senior_timetable(selected)
+
+    else:
+        selected_primary = st.selectbox(
+            "Select class",
+            list(PRIMARY.keys()),
+            key="primary_class_select",
+        )
+
+        st.subheader(f"{selected_primary} Timetable")
+        show_primary_timetable(selected_primary)
+
+# =========================================================
+# 12. CHATBOT PAGE
+# =========================================================
+
+elif page == "Ask the Chatbot":
+    st.subheader("💬 Ask KNS Smart Assistant")
+
+    st.write(
+        "Ask a question below. For the complete timetable, use "
+        "'Timetable Browser' in the sidebar."
     )
 
-# -----------------------------
-# ABOUT SCHOOL
-# -----------------------------
-if about:
-    st.markdown("## 🏫 About Khair un Nas School Swat")
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = [
+            {
+                "role": "assistant",
+                "content": (
+                    "Assalam-o-Alaikum! Welcome to KNS Smart Assistant. "
+                    "What would you like to know?"
+                ),
+            }
+        ]
+
+    if st.button("Clear chat", key="clear_chat"):
+        st.session_state.chat_history = [
+            {
+                "role": "assistant",
+                "content": "Chat cleared. How can I help you?",
+            }
+        ]
+        st.rerun()
+
+    for message in st.session_state.chat_history:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    prompt = st.chat_input("Ask about school, teachers, fees, or AI...")
+
+    if prompt:
+        st.session_state.chat_history.append(
+            {"role": "user", "content": prompt}
+        )
+
+        response = answer_question(prompt)
+
+        st.session_state.chat_history.append(
+            {"role": "assistant", "content": response}
+        )
+
+        st.rerun()
+
+# =========================================================
+# 13. ABOUT SCHOOL
+# =========================================================
+
+elif page == "About School":
+    st.subheader("🏫 About Our School")
+
+    st.markdown(f"**School:** {SCHOOL_NAME}")
+    st.markdown(f"**Address:** {SCHOOL_ADDRESS}")
+    st.markdown(f"**Principal:** {PRINCIPAL}")
+    st.markdown(f"**General timing:** {SCHOOL_TIMING}")
+    st.markdown(f"**Phone supplied in timetable:** {SCHOOL_PHONE}")
+
+    st.caption(
+        "Please confirm contact details and current school policies "
+        "with the school office."
+    )
+
+# =========================================================
+# 14. TEACHERS AND SUBJECTS
+# =========================================================
+
+elif page == "Teachers & Subjects":
+    st.subheader("👩‍🏫 Teachers & Subjects")
+
+    teacher_df = pd.DataFrame(
+        TEACHERS,
+        columns=["Class", "Subject", "Teacher"],
+    )
+
+    st.dataframe(
+        teacher_df,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.subheader("Class 10 AI")
+
+    st.success(
+        "Sir Sufyan is the Artificial Intelligence (AI) teacher for Class 10."
+    )
+
+    st.write(
+        "For the teachers listed in the Classes Five to Ten timetable, "
+        "open the Timetable Browser and select the relevant class."
+    )
+
+# =========================================================
+# 15. FEES
+# =========================================================
+
+elif page == "Fee Information":
+    st.subheader("💰 Fee Information")
+
+    st.write("Previously provided fee ranges:")
 
     st.markdown("""
-**Khair un Nas School Swat** is an educational institution
-located in **Gunbad Maira, Mingora, Swat**.
+    - Lower classes: approximately Rs. 2,500–3,000
+    - Classes 7–10: approximately Rs. 4,000–4,500
+    """)
 
-Our school is committed to providing students with:
+    st.info(
+        "These are previously supplied figures, not verified current fees. "
+        "Contact the school office for the latest fee schedule."
+    )
 
-- 📚 Quality education
-- 🧭 Discipline
-- 🌱 Character development
-- 🤝 A supportive learning environment
-- 💡 Confidence and academic growth
+# =========================================================
+# 16. ADMISSIONS
+# =========================================================
 
-We aim to help students develop strong academic knowledge,
-good manners, confidence, and the skills they need to become
-responsible and successful members of society.
+elif page == "Admission":
+    st.subheader("📝 Admission Information")
 
-Our dedicated teachers guide students in different subjects
-and encourage them to learn, ask questions, and achieve their goals.
-""")
+    st.write(
+        "For admission to Khair-un-Nas School Swat, contact the school "
+        "office to confirm available seats, the admission process, "
+        "required documents, and current fees."
+    )
+
+    st.markdown(f"**Location:** {SCHOOL_ADDRESS}")
+    st.markdown(f"**Phone supplied in timetable:** {SCHOOL_PHONE}")
+
+# =========================================================
+# 17. SCHOOL TIMING
+# =========================================================
+
+elif page == "School Timing":
+    st.subheader("⏰ School Timing")
+
+    st.markdown(f"**General school timing:** {SCHOOL_TIMING}")
+
+    st.write(
+        "The timetable supplied for Classes Five to Ten starts at 7:50 AM. "
+        "The primary timetable lists assembly from 8:10 AM. "
+        "Please confirm the applicable arrival time for each class with the school."
+    )
+
+# =========================================================
+# 18. HOLIDAYS AND FACILITIES
+# =========================================================
+
+elif page == "Holidays & Facilities":
+    st.subheader("🏖️ School Holidays")
+
+    st.markdown(
+        """
+        Holiday dates may change according to the school calendar.
+        Please contact the school administration to confirm the
+        official summer holiday dates and reopening date.
+        """
+    )
 
     st.divider()
 
-    st.markdown("### 🏫 School Information")
+    st.subheader("🏫 Our School Facilities")
 
-    info1, info2 = st.columns(2)
-
-    with info1:
-        st.markdown("**👨‍💼 Principal**")
-        st.write(principal)
-
-        st.markdown("**📍 Location**")
-        st.write(location)
-
-    with info2:
-        st.markdown("**📚 Classes**")
-        st.write("8 Classes")
-
-        st.markdown("**🕐 School Timing**")
-        st.write(timing)
-
-    st.success(
-        "🌟 Our goal is to provide students with education, "
-        "discipline, confidence, and skills for a successful future."
-    )
-
-# -----------------------------
-# TEACHERS
-# -----------------------------
-if teachers:
-    st.markdown("## 👨‍🏫 Teachers & Subjects")
-
-    teacher_data = [
-        ("Zero Class", "Urdu", "Sir Majeedullah"),
-        ("1st Class", "Chemistry", "Sir Saqib"),
-        ("2nd Class", "Physics", "Sir Shakur"),
-        ("3rd Class", "Biology", "Sir Asif"),
-        ("4th Class", "Mathematics", "Sir Amjad"),
-        ("6th Class", "Islamiyat & Mutalia Quran", "Sir Siddiq"),
-        ("7th Class", "English", "Sir Arif"),
-        ("Last Class", "Pak Study", "Sir Yaseen")
+    facilities = [
+        (
+            "📚 Library",
+            "A place where students can read books and develop "
+            "their knowledge and reading skills."
+        ),
+        (
+            "🏃 Playground",
+            "A space for students to participate in physical "
+            "activities, games, and outdoor recreation."
+        ),
+        (
+            "🔬 Laboratory",
+            "A learning space for practical work and scientific "
+            "experiments under appropriate supervision."
+        ),
+        (
+            "🩺 Medical Facility",
+            "Medical assistance for students when they feel unwell "
+            "or need attention during school hours."
+        ),
     ]
 
-    for class_name, subject, teacher in teacher_data:
-        st.markdown(
-            f"""
-### 🎓 {class_name}
+    col1, col2 = st.columns(2)
 
-**Subject:** {subject}
-
-**Teacher:** {teacher}
-"""
-        )
-
-        st.divider()
-
-# -----------------------------
-# CLASSES
-# -----------------------------
-if classes:
-    st.markdown("## 📚 Classes")
-
-    st.success(
-        "Khair un Nas School Swat currently has **8 classes**."
-    )
-
-    st.markdown("""
-### 📖 Classes & Subjects
-
-1. Zero Class — Urdu
-2. 1st Class — Chemistry
-3. 2nd Class — Physics
-4. 3rd Class — Biology
-5. 4th Class — Mathematics
-6. 6th Class — Islamiyat & Mutalia Quran
-7. 7th Class — English
-8. Last Class — Pak Study
-""")
-
-# -----------------------------
-# FEES
-# -----------------------------
-if fees:
-    st.markdown("## 💰 Fee Information")
+    for index, (facility_name, description) in enumerate(facilities):
+        with (col1 if index % 2 == 0 else col2):
+            st.markdown(
+                f"""
+                <div class="info-card">
+                    <h3>{facility_name}</h3>
+                    <p>{description}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     st.info(
-        "For the most accurate and current fee information, "
+        "For details about facility availability and school policies, "
         "please contact the school administration."
     )
-
-    st.markdown(f"""
-**📞 School Contact:** {phone}
-
-The administration can provide information about:
-
-- 💰 Monthly fees
-- 📝 Admission fees
-- 📚 Other educational charges
-- 📋 Required documents
-""")
-
-# -----------------------------
-# ADMISSION
-# -----------------------------
-if admission:
-    st.markdown("## 📝 Admission Process")
-
-    st.markdown("""
-Welcome to **Khair un Nas School Swat!**
-
-Our admission process is simple and student-friendly.
-
-### 1️⃣ Visit the School
-
-Parents or guardians should visit the school
-along with the student.
-
-### 2️⃣ Get Admission Information
-
-Collect information about available classes,
-fees, and requirements from the school administration.
-
-### 3️⃣ Submit Required Documents
-
-Provide the necessary student documents
-as requested by the school.
-
-### 4️⃣ Admission Confirmation
-
-After verification and approval by the school
-administration, the student's admission will be confirmed.
-
-### 5️⃣ Start Classes
-
-The student can begin attending classes
-according to the school schedule.
-""")
-
-    st.success(
-        "📍 Visit: Gunbad Maira, Mingora, Swat"
-    )
-
-# -----------------------------
-# SCHOOL TIMING
-# -----------------------------
-if timing_button:
-    st.markdown("## 🕐 School Timing")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.metric(
-            "🌅 School Starts",
-            "8:00 AM"
-        )
-
-    with col2:
-        st.metric(
-            "🌇 School Ends",
-            "2:00 PM"
-        )
-
-    st.info(
-        "Students should arrive at school on time "
-        "according to the school schedule."
-    )
-
-# -----------------------------
-# HOLIDAYS
-# -----------------------------
-if holidays:
-    st.markdown("## 🏖️ School Holidays")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("### ☀️ Summer Holidays")
-        st.write("Approximately one month.")
-
-    with col2:
-        st.markdown("### ❄️ Winter Holidays")
-        st.write("Approximately one month.")
-
-# -----------------------------
-# FACILITIES
-# -----------------------------
-if facilities:
-    st.markdown("## 🏢 School Facilities")
-
-    st.markdown("""
-### 📚 Library
-
-A learning space where students can access
-books and educational resources.
-
-### 🔬 Laboratory
-
-A facility that supports practical and
-science-related learning.
-
-### ⚽ Playground
-
-A space where students can participate
-in physical activities and sports.
-
-### 🚌 Transport
-
-School transport facilities are available
-for students.
-
-### 📱 Zama App
-
-The school's **Zama App** provides access
-to services such as:
-
-- 📖 Child diary
-- 📊 Test results
-""")
-
-# -----------------------------
-# ABOUT ME
-# -----------------------------
-if about_me:
-    st.markdown("## 👩‍💻 About Me")
-
-    st.markdown("""
-### 🌟 Student Profile
-
-**👩 Name:** Madiha Sha
-
-**👨 Father's Name:** Barkat Ali
-
-**🎓 Class:** 10th
-
-**🏫 School:** Khair un Nas School Swat
-
-### 📚 Hobbies
-
-- 📖 Reading books
-- ✍️ Writing stories
-- 🏸 Playing with rackets
-""")
-
-    st.success(
-        "🌟 Madiha is a student who loves learning, "
-        "reading books, writing stories, and playing with rackets."
-    )
-
-# -----------------------------
-# CHATBOT
-# -----------------------------
-st.divider()
-
-st.subheader("🤖 Ask KNS Assistant")
-
-question = st.chat_input(
-    "Ask something about the school or Madiha..."
-)
-
-if question:
-
-    st.chat_message("user").write(question)
-
-    q = question.lower().strip()
-
-    # -----------------------------
-    # MADIHA INFORMATION
-    # -----------------------------
-
-    if (
-        "madiha" in q
-        and (
-            "who" in q
-            or "about" in q
-            or "tell me" in q
-        )
-    ):
-        answer = (
-            "👩‍💻 **Madiha Sha** is a Class 10 student "
-            "of **Khair un Nas School Swat**."
-        )
-
-    elif "madiha" in q and "father" in q:
-        answer = (
-            "👨 Madiha Sha's father's name is "
-            "**Barkat Ali**."
-        )
-
-    elif "madiha" in q and "class" in q:
-        answer = (
-            "🎓 Madiha Sha is a student of "
-            "**Class 10**."
-        )
-
-    elif "madiha" in q and "school" in q:
-        answer = (
-            "🏫 Madiha Sha is a student of "
-            "**Khair un Nas School Swat**."
-        )
-
-    elif "madiha" in q and (
-        "hobby" in q
-        or "hobbies" in q
-    ):
-        answer = (
-            "📚 Madiha Sha's hobbies are "
-            "**reading books, writing stories, "
-            "and playing with rackets**."
-        )
-
-    # -----------------------------
-    # TEACHERS
-    # -----------------------------
-
-    elif "biology" in q and (
-        "teacher" in q
-        or "teach" in q
-    ):
-        answer = (
-            "🧬 Biology is taught by "
-            "**Sir Asif**."
-        )
-
-    elif "chemistry" in q and (
-        "teacher" in q
-        or "teach" in q
-    ):
-        answer = (
-            "🧪 Chemistry is taught by "
-            "**Sir Saqib**."
-        )
-
-    elif "physics" in q and (
-        "teacher" in q
-        or "teach" in q
-    ):
-        answer = (
-            "⚛️ Physics is taught by "
-            "**Sir Shakur**."
-        )
-
-    elif (
-        ("math" in q or "mathematics" in q)
-        and (
-            "teacher" in q
-            or "teach" in q
-        )
-    ):
-        answer = (
-            "➗ Mathematics is taught by "
-            "**Sir Amjad**."
-        )
-
-    elif "english" in q and (
-        "teacher" in q
-        or "teach" in q
-    ):
-        answer = (
-            "🇬🇧 English is taught by "
-            "**Sir Arif**."
-        )
-
-    elif (
-        "islamiyat" in q
-        or "mutalia quran" in q
-    ):
-        answer = (
-            "📖 Islamiyat and Mutalia Quran "
-            "are taught by **Sir Siddiq**."
-        )
-
-    elif (
-        "pak study" in q
-        or "pakistan study" in q
-    ):
-        answer = (
-            "🇵🇰 Pak Study is taught by "
-            "**Sir Yaseen**."
-        )
-
-    elif "urdu" in q and (
-        "teacher" in q
-        or "teach" in q
-    ):
-        answer = (
-            "📚 Urdu is taught by "
-            "**Sir Majeedullah**."
-        )
-
-    # -----------------------------
-    # SCHOOL INFORMATION
-    # -----------------------------
-
-    elif "principal" in q:
-        answer = (
-            "👨‍💼 The principal of "
-            "Khair un Nas School Swat is "
-            "**Sir Khalid**."
-        )
-
-    elif (
-        "where" in q
-        and (
-            "school" in q
-            or "location" in q
-        )
-    ):
-        answer = (
-            "📍 Our school is located in "
-            "**Gunbad Maira, Mingora, Swat**."
-        )
-
-    elif (
-        "location" in q
-        or "located" in q
-    ):
-        answer = (
-            "📍 Khair un Nas School Swat is located "
-            "in **Gunbad Maira, Mingora, Swat**."
-        )
-
-    elif (
-        "timing" in q
-        or "time" in q
-        or "start" in q
-        or "end" in q
-    ):
-        answer = (
-            "🕐 School starts at **8:00 AM** "
-            "and ends at **2:00 PM**."
-        )
-
-    elif (
-        "how many" in q
-        and "class" in q
-    ):
-        answer = (
-            "📚 Khair un Nas School Swat has "
-            "**8 classes**."
-        )
-
-    elif (
-        "class" in q
-        and "number" in q
-    ):
-        answer = (
-            "📚 Khair un Nas School Swat has "
-            "**8 classes**."
-        )
-
-    elif (
-        "holiday" in q
-        or "holidays" in q
-    ):
-        answer = (
-            "🏖️ We have both summer and winter "
-            "holidays, each approximately one month."
-        )
-
-    elif "admission" in q:
-        answer = (
-            "📝 For admission, parents or guardians "
-            "should visit the school with the student "
-            "and contact the administration for "
-            "requirements and fees."
-        )
-
-    elif (
-        "facility" in q
-        or "facilities" in q
-    ):
-        answer = (
-            "🏢 Our facilities include a "
-            "**library, laboratory, playground, "
-            "transport and Zama App**."
-        )
-
-    elif (
-        "zama" in q
-        or "diary" in q
-        or "result" in q
-    ):
-        answer = (
-            "📱 The **Zama App** provides services "
-            "such as the child's diary and test results."
-        )
-
-    elif (
-        "contact" in q
-        or "phone" in q
-        or "number" in q
-    ):
-        answer = (
-            "📞 You can contact "
-            "Khair un Nas School Swat at "
-            "**+92 346 9443390**."
-        )
-
-    # -----------------------------
-    # FALLBACK
-    # -----------------------------
-
-    else:
-        answer = (
-            "🤖 I'm sorry, I don't have verified "
-            "information about that yet.\n\n"
-            "You can ask me about **teachers, classes, "
-            "timing, admission, holidays, facilities, "
-            "location, contact information, Zama App, "
-            "or Madiha Sha**."
-        )
-
-    st.chat_message("assistant").markdown(answer)
-
-# -----------------------------
-# CREATED BY
-# -----------------------------
-st.divider()
-
-st.markdown("## 👩‍💻 Created By")
-
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.image("sudais.jpg", width=150)
-
-with col2:
-    st.markdown("""
-### 🌟 Madiha Sha
-
-**Class:** 10th  
-**School:** Khair un Nas School Swat
-
-📚 Reading Books  
-✍️ Writing Stories  
-🏸 Playing with Rackets
-""")
-
-st.caption("🏫 KNS Smart Assistant • Khair un Nas School Swat")
